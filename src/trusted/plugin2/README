@@ -1,0 +1,5 @@
+Checkout out this repo to native_client/src/trusted/plugin2.
+
+Here's an example command line for running the plug-in:
+
+~/svn/kr/src/xcodebuild/Debug/Chromium.app/Contents/MacOS/Chromium --register-pepper-plugins="/Users/abarth/svn/nacl/native_client/scons-out/opt-mac-x86-32/staging/ppNaClPlugin2.bundle/Contents/MacOS/ppNaClPlugin2;application/x-ppapi-example" ~/svn/kr/src/ppapi/example/example.html --ppapi-out-of-process

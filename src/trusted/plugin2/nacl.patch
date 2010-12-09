@@ -1,0 +1,12 @@
+Index: SConstruct
+===================================================================
+--- SConstruct	(revision 3867)
++++ SConstruct	(working copy)
+@@ -1342,6 +1342,7 @@
+     'src/trusted/perf_counter/build.scons',
+     'src/trusted/platform_qualify/build.scons',
+     'src/trusted/plugin/build.scons',
++    'src/trusted/plugin2/build.scons',
+     'src/trusted/sandbox/build.scons',
+     'src/trusted/sel_universal/build.scons',
+     'src/trusted/service_runtime/build.scons',
