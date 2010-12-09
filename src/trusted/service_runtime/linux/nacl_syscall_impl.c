@@ -430,6 +430,16 @@ int32_t NaClSysImc_Mem_Obj_Create(struct NaClAppThread  *natp,
   return NaClCommonSysImc_Mem_Obj_Create(natp, size);
 }
 
+int32_t NaClSysPPAPI_WaitNextEvent(struct NaClAppThread *natp,
+                                   void                 *method_struct) {
+  return NaClCommonSysPPAPI_WaitNextEvent(natp, method_struct);
+}
+
+int32_t NaClSysPPAPI_Call(struct NaClAppThread *natp,
+                          void                 *method_struct) {
+  return NaClCommonSysPPAPI_Call(natp, method_struct);
+}
+
 int32_t NaClSysTls_Init(struct NaClAppThread  *natp,
                         void                  *tdb,
                         size_t                size) {

@@ -16,6 +16,7 @@ env.FilterOut(CCFLAGS=['-pedantic'])
 
 sources = [
     'av_wait.c',
+    'ppapi_syscalls.c',
     'clock.c',
     'close.c',
     'dyncode_copy.c',

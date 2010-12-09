@@ -310,6 +310,21 @@ extern int imc_mem_obj_create(size_t nbytes);
 extern int imc_socketpair(int pair[2]);
 
 /**
+ * @nacl
+ * Used for implmenting the PPAPI in NaCl.
+ * It is an error to call ppapi_waitnextevent if not loaded as a plugin.
+ * Returns 0 on success.
+ */
+extern int ppapi_waitnextevent(void* method_struct);
+/**
+ * @nacl
+ * Used for implmenting the PPAPI in NaCl.
+ * It is an error to call ppapi_waitnextevent if not loaded as a plugin.
+ * Returns 0 on success.
+ */
+extern int ppapi_call(void* method_struct);
+
+/**
  *  @nacl
  *  Relinquish the processor voluntarily.
  */

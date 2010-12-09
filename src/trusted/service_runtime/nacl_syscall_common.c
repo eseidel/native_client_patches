@@ -1581,6 +1581,33 @@ int32_t NaClCommonSysImc_Connect(struct NaClAppThread *natp,
   return retval;
 }
 
+int32_t NaClCommonSysPPAPI_WaitNextEvent(struct NaClAppThread *natp,
+                                           void                 *method_struct) {
+  int32_t         retval = -NACL_ABI_EINVAL;
+
+  NaClLog(4, "Entered NaClCommonSysPPAPI_WaitNextEvent(0x%08"NACL_PRIxPTR", 0x%08"NACL_PRIxPTR")\n",
+          (uintptr_t) natp, (uintptr_t) method_struct);
+
+  NaClSysCommonThreadSyscallEnter(natp);
+  printf("wait_next_event");
+  retval = 1; // Caller should exit.
+  NaClSysCommonThreadSyscallLeave(natp);
+  return 0;
+}
+
+int32_t NaClCommonSysPPAPI_Call(struct NaClAppThread *natp,
+                                void                 *method_struct) {
+  int32_t         retval = -NACL_ABI_EINVAL;
+  NaClLog(4, "Entered NaClCommonSysPPAPI_Call(0x%08"NACL_PRIxPTR", 0x%08"NACL_PRIxPTR")\n",
+          (uintptr_t) natp, (uintptr_t) method_struct);
+
+  NaClSysCommonThreadSyscallEnter(natp);
+  printf("call");
+  retval = 0; // Success
+  NaClSysCommonThreadSyscallLeave(natp);
+  return retval;
+}
+
 /*
  * This function converts addresses from user addresses to system
  * addresses, copying into kernel space as needed to avoid TOCvTOU

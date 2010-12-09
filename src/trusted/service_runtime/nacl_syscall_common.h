@@ -169,6 +169,12 @@ int32_t NaClCommonSysImc_Recvmsg(struct NaClAppThread         *natp,
 int32_t NaClCommonSysImc_Mem_Obj_Create(struct NaClAppThread  *natp,
                                         size_t                size);
 
+int32_t NaClCommonSysPPAPI_WaitNextEvent(struct NaClAppThread *natp,
+                                         void                 *method_struct);
+
+int32_t NaClCommonSysPPAPI_Call(struct NaClAppThread *natp,
+                                void                 *method_struct);
+
 int32_t NaClCommonSysTls_Init(struct NaClAppThread  *natp,
                               void                  *tdb,
                               size_t                size);
