@@ -1,0 +1,44 @@
+# -*- python -*-
+# Copyright 2008 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+# There is no stat64 in newlib
+if not env.Bit('nacl_glibc'):
+  Return()
+
+env.ComponentProgram('test_stat.nexe', 'test_stat.c')
+
+test_stat = env.CommandSelLdrTestNacl(
+    'test_stat.out',
+     command=[env.File('test_stat.nexe'), env.File('test_stat_data')])
+
+env.AddNodeToTestSuite(test_stat, ['small_tests'], 'run_stat_test')
+
+env.ComponentProgram('test_dir.nexe', 'test_dir.c')
+
+test_dir_nexe = env.File('test_dir.nexe')
+
+test_dir = env.CommandSelLdrTestNacl(
+    'test_dir.out',
+    command=[test_dir_nexe, test_dir_nexe.path.rstrip('test_dir.nexe')])
+
+env.AddNodeToTestSuite(test_dir, ['small_tests'], 'run_dir_test')
+
+env.ComponentProgram('test_time.nexe', 'test_time.c')
+
+test_time = env.CommandSelLdrTestNacl(
+    'test_time.out',
+    command=[env.File('test_time.nexe')])
+
+env.AddNodeToTestSuite(test_time, ['small_tests'], 'run_time_test')
+
+env.ComponentProgram('test_rewind.nexe', 'test_rewind.c')
+
+test_rewind = env.CommandSelLdrTestNacl(
+    'test_rewind.out',
+    command=[env.File('test_rewind.nexe'), env.File('test_rewind_data')])
+
+env.AddNodeToTestSuite(test_rewind, ['small_tests'], 'run_rewind_test')

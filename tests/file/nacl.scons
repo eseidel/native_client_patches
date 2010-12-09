@@ -1,0 +1,39 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+# Don't use -lnosys on pnacl - it's automagically included and will spoil
+# things if included before -lc
+if env.Bit('bitcode'):
+  extra_libs = ['pthread']
+else:
+  extra_libs = ['pthread', 'nosys']
+
+env.ComponentProgram('file.nexe',
+                     'file.cc',
+                     EXTRA_LIBS=extra_libs)
+
+# TODO: add tests back in
+# NOTE: this smoke tests currently fails in "test17"
+#       when opening "././file/testdata256"
+#       it creates files in the current directory and below
+#       which should be avoided
+#       so for now we invoke file.py (see below)
+
+# node = env.CommandSelLdrTestNacl('file_test.out',
+#                                  env.File('file.nexe'),
+#                                  flags='-d',
+#                                  )
+# AlwaysBuild(node)
+# env.AddNodeToSmokeTestSuite(node)
+
+
+# node = env.Command('file_test.out',
+#                    'file.py',
+#                    '${PYTHON} %s > ${TARGET}' % env.File('file.py')
+#                    )
+# AlwaysBuild(node)
+# env.AddNodeToSmokeTestSuite(node)

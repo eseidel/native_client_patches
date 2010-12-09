@@ -1,0 +1,19 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+env.Replace(EXTRA_LIBS=['srpc'])
+
+env.ComponentProgram('basic_srpc.nexe', 'basic_srpc.c')
+node = env.CommandSelLdrTestNacl(
+    'basic_srpc_test.out',
+    command=[env.File('basic_srpc.nexe')],
+    stdin=env.File('basic_srpc_test.stdin'),
+    stdout_golden=env.File('basic_srpc_test.stdout'),
+    osenv='NACL_SRPC_STANDALONE=1',
+    )
+
+env.AddNodeToTestSuite(node, ['small_tests'], 'run_basic_srpc_test')

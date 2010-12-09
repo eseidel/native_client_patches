@@ -1,0 +1,36 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+env.ComponentProgram('fib_array.nexe',
+                     'fib_array.c',
+                     EXTRA_LIBS=['srpc', 'google_nacl_imc_c', 'pthread'])
+node = env.CommandSelLdrTestNacl(
+    'fib_array_test.out',
+    command=[env.File('fib_array.nexe')],
+    stdin=env.File('fib_array_test.stdin'),
+    stdout_golden=env.File('fib_array_test.stdout'),
+    osenv='NACL_SRPC_STANDALONE=1',
+    )
+env.AddNodeToTestSuite(node,
+                       ['small_tests', 'sel_ldr_tests'],
+                       'run_fib_array_test')
+
+
+
+env.ComponentProgram('fib_scalar.nexe',
+                     'fib_scalar.c',
+                     EXTRA_LIBS=['srpc', 'google_nacl_imc_c', 'pthread'])
+node = env.CommandSelLdrTestNacl(
+    'fib_scalar_test.out',
+    command=[env.File('fib_scalar.nexe')],
+    stdin=env.File('fib_scalar_test.stdin'),
+    stdout_golden=env.File('fib_scalar_test.stdout'),
+    osenv='NACL_SRPC_STANDALONE=1',
+      )
+env.AddNodeToTestSuite(node,
+                       ['small_tests', 'sel_ldr_tests'],
+                       'run_fib_scalar_test')

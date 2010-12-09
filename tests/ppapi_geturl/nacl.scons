@@ -1,0 +1,37 @@
+# Copyright (c) 2010 The Native Client Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# This is a C PPAPI-based version of ../npapi_geturl.
+#
+# ppapi_geturl.html - test driver that loads the nexe and scripts it
+# ppapi_geturl_success.html - to be url-loaded and displayed w/n driver html
+#
+# ppapi_geturl.cc - implementation of PPP interface
+# module.h/cc - implementation of PPP_Instance interface
+# scriptable_object.h/cc - implementation of the scripting interface
+# url_load_request.h/cc - url loading helper
+
+
+Import('env')
+
+env.Prepend(CPPDEFINES=['XP_UNIX'])
+
+ppapi_geturl_nexe = env.ComponentProgram('ppapi_geturl.nexe',
+                                         ['module.cc',
+                                          'ppapi_geturl.cc',
+                                          'scriptable_object.cc',
+                                          'url_load_request.cc',
+                                          ],
+                                         EXTRA_LIBS=['ppruntime',
+                                                     'google_nacl_imc',
+                                                     'google_nacl_platform',
+                                                     'gio',
+                                                     'pthread',
+                                                     'srpc'])
+
+# Note that the html is required to run this program.
+env.Publish('ppapi_geturl.nexe', 'run',
+            ['ppapi_geturl.html',
+             'ppapi_geturl_success.html',
+             env.File('${SCONSTRUCT_DIR}/tests/nacl_js_lib.js') ])

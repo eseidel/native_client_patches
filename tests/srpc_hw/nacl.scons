@@ -1,0 +1,34 @@
+# Copyright (c) 2008 The Native Client Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+Import('env')
+
+nexe = env.ComponentProgram('srpc_hw.nexe', 'srpc_hw.c',
+                            EXTRA_LIBS=['srpc', 'google_nacl_imc_c','pthread'])
+
+# Note that the html is required to run this program.
+# In Chrome, we can share the nexe between the NPAPI (built-in) and
+# PPAPI (loaded with --register-pepper-plugins) versions of NaCl, but the html
+# needs to be different to specify different plugin content types.
+nacl_js_lib = env.File('${SCONSTRUCT_DIR}/tests/nacl_js_lib.js')
+env.Publish('srpc_hw.nexe', 'run', ['srpc_hw.html', nacl_js_lib])
+env.Publish('srpc_hw.nexe', 'run', ['srpc_hw_ppapi.html', nacl_js_lib])
+
+env.AddPrebuiltBinaryToRepository(nexe)
+
+
+# TODO(dpolukhin): enable for x86-64 ASAP.
+if env.Bit('target_x86_64'):
+  Return()
+
+node = env.BrowserTester(
+     'srpc_hw_browser_test.out',
+     url='srpc_hw.html',
+     files=[nexe,
+            env.File('srpc_hw.html'),
+            env.File('${SCONSTRUCT_DIR}/tests/nacl_js_lib.js'),
+            ],
+     browser='*firefox',
+     )
+env.AddNodeToTestSuite(node, ['browser_tests'], 'run_srpc_hw_browser_test')

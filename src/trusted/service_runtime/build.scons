@@ -1,0 +1,881 @@
+# -* python -*-
+# Copyright 2009 The Native Client Authors.  All rights reserved.  Use
+# of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import platform
+import sys
+
+Import('env')
+
+# TODO(robertm): consider adding this to the top level scons files
+env.Append(CPPPATH=['${TARGET_ROOT}'])
+# this is needed for including gen/... files, see GENERATED below
+
+# this is needed for including gdb_utils files
+env.Append(CPPPATH=['${SOURCE_ROOT}/gdb_utils/src'])
+
+DEBUG_LIBS = ['gdb_rsp','debug_stub']
+if env.Bit('windows'):
+  env.Append(CPPDEFINES=['WIN32'])
+  if env.Bit('target_x86_64'):
+    env.Append(CPPDEFINES=['WIN64'])
+
+
+
+# normally comment out -- uncomment out to test the pedantic removal
+# check below.
+#if env.Bit('linux') or env.Bit('mac'):
+#  env.FilterOut(CCFLAGS=['-pedantic'])
+#  env.FilterOut(CCFLAGS=['-Wall'])
+
+
+if env.Bit('target_x86'):
+  env.Append(LIBS=['ncvalidate'])
+elif env.Bit('target_arm'):
+  env.Append(LIBS=['ncvalidate_arm_v2',
+                   'arm_validator_core'])
+else:
+  # unknown architcture
+  assert 0
+
+# Make a copy of debug CRT for now.
+# TODO(bradnelson): there should be a better way to generalize this requirement.
+crt = []
+if env.AllBits('windows', 'debug'):
+  for i in ['.', '${STAGING_DIR}']:
+    crt += env.Replicate(i, '$VC80_DIR/vc/redist/Debug_NonRedist/'
+                         'x86/Microsoft.VC80.DebugCRT')
+    crt += env.Replicate(i, '$VC80_DIR/vc/redist/x86/Microsoft.VC80.CRT')
+
+
+
+if env.Bit('windows'):
+  syscall_impl = 'win/nacl_syscall_impl.c'
+else:
+  syscall_impl = 'linux/nacl_syscall_impl.c'
+
+# TODO GENERATED CODE
+GENERATED='${TARGET_ROOT}/gen/native_client/src/trusted/service_runtime'
+env.Command(target=env.File(GENERATED + '/nacl_syscall_handlers.c'),
+            source=[syscall_impl, 'nacl_syscall_handlers_gen2.py'],
+            action=[Action('${PYTHON} ${SOURCES[1]} ${SYSCALL_GEN_FLAGS}'
+                           ' -i ${SOURCE} -o ${TARGET}'),
+                    ],
+            )
+
+
+# ----------------------------------------------------------
+# TODO(robertm): this library is too big and needs to be split up
+#                for easier unit testing
+ldr_inputs = [
+    'dyn_array.c',
+    'env_cleanser.c',
+    'nacl_all_modules.c',
+    'nacl_app_thread.c',
+    'nacl_bottom_half.c',
+    'nacl_closure.c',
+    'nacl_debug.cc',
+    'nacl_desc_effector_ldr.c',
+    'nacl_globals.c',
+    'nacl_memory_object.c',
+    'nacl_signal_common.c',
+    'nacl_sync_queue.c',
+    'nacl_syscall_common.c',
+    GENERATED + '/nacl_syscall_handlers.c',
+    'nacl_syscall_hook.c',
+    'nacl_text.c',
+    'sel_addrspace.c',
+    'sel_ldr.c',
+    'sel_ldr-inl.c',
+    'sel_ldr_standard.c',
+    # sel_main_chrome.c is compile-tested here but not otherwise used
+    # in the Scons build.
+    'sel_main_chrome.c',
+    'sel_mem.c',
+    'sel_qualify.c',
+    'sel_util.c',
+    'sel_util-inl.c',
+    'sel_validate_image.c',
+    'elf_util.c',
+]
+
+if env.Bit('build_x86_32'):
+  ldr_inputs += [
+      'arch/x86/nacl_ldt_x86.c',
+      'arch/x86_32/nacl_app_32.c',
+      'arch/x86_32/nacl_switch_32.S',
+      'arch/x86_32/nacl_switch_to_app_32.c',
+      'arch/x86_32/nacl_syscall_32.S',
+      'arch/x86_32/nacl_tls_32.c',
+      'arch/x86_32/sel_addrspace_x86_32.c',
+      'arch/x86_32/sel_ldr_x86_32.c',
+      'arch/x86_32/sel_rt_32.c',
+      'arch/x86_32/springboard.S',
+      'arch/x86_32/tramp_32.S',
+      ]
+elif env.Bit('build_x86_64'):
+  ldr_inputs += [
+      'arch/x86/nacl_ldt_x86.c',
+      'arch/x86_64/nacl_app_64.c',
+      'arch/x86_64/nacl_switch_64.S',
+      'arch/x86_64/nacl_switch_to_app_64.c',
+      'arch/x86_64/nacl_syscall_64.S',
+      'arch/x86_64/nacl_tls_64.c',
+      'arch/x86_64/sel_addrspace_x86_64.c',
+      'arch/x86_64/sel_ldr_x86_64.c',
+      'arch/x86_64/sel_rt_64.c',
+      'arch/x86_64/tramp_64.S',
+      ]
+elif env.Bit('build_arm'):
+  ldr_inputs += [
+    'arch/arm/nacl_app.c',
+    'arch/arm/nacl_switch_to_app_arm.c',
+    'arch/arm/sel_rt.c',
+    'arch/arm/nacl_tls.c',
+    'arch/arm/sel_ldr_arm.c',
+    'arch/arm/sel_addrspace_arm.c',
+    'arch/arm/nacl_switch.S',
+    'arch/arm/nacl_syscall.S',
+    'arch/arm/springboard.S',
+    'arch/arm/tramp_arm.S',
+  ]
+
+if env.Bit('windows'):
+  ldr_inputs += [
+    'win/nacl_ldt.c',
+    'win/nacl_thread_nice.c',
+    'win/sel_memory.c',
+    'win/sel_segments.c',
+  ]
+elif env.Bit('mac'):
+  ldr_inputs += [
+    'osx/nacl_ldt.c',
+    'osx/nacl_thread_nice.c',
+    'linux/sel_memory.c',
+    'linux/x86/sel_segments.c',
+    'osx/outer_sandbox.c',
+  ]
+elif env.Bit('linux'):
+  ldr_inputs += [
+    'linux/sel_memory.c',
+    'linux/nacl_thread_nice.c',
+  ]
+  if env.Bit('build_x86'):
+    ldr_inputs += [
+      'linux/x86/nacl_ldt.c',
+      'linux/x86/sel_segments.c',
+    ]
+  elif env.Bit('build_arm'):
+    ldr_inputs += [
+      'linux/arm/sel_segments.c',
+    ]
+
+
+# -------------------------------------------------------------
+# Add OS and architecture specific signal handling files.
+#
+if env.Bit('windows'):
+  ldr_inputs += ['win/nacl_signal.c']
+  if env.Bit('target_x86_32'):
+    ldr_inputs += ['win/nacl_signal_32.c']
+  elif env.Bit('target_x86_64'):
+    ldr_inputs += ['win/nacl_signal_64.c']
+  else:
+    raise Exception("Unsupported target")
+
+if env.Bit('linux'):
+  ldr_inputs += ['posix/nacl_signal.c']
+  if env.Bit('target_arm'):
+    ldr_inputs += ['linux/nacl_signal_arm.c']
+  elif env.Bit('target_x86_32'):
+    ldr_inputs += ['linux/nacl_signal_32.c']
+  elif env.Bit('target_x86_64'):
+    ldr_inputs += ['linux/nacl_signal_64.c']
+  else:
+    raise Exception("Unsupported target")
+
+if env.Bit('mac'):
+  ldr_inputs += ['posix/nacl_signal.c']
+  if env.Bit('target_x86_32'):
+    ldr_inputs += ['osx/nacl_signal_32.c']
+  elif env.Bit('target_x86_64'):
+    ldr_inputs += ['osx/nacl_signal_64.c']
+  else:
+    raise Exception("Unsupported target")
+
+
+# ----------------------------------------------------------
+# SDL hacks
+# NOTE: there are some more sdl hacks in native_client//SConstruct
+#       and native_client/site_scons/site_tools/sdl.py
+# ----------------------------------------------------------
+sdl_mode = ARGUMENTS.get('sdl', 'hermetic')
+# Require a valid sdl mode.
+if sdl_mode not in ['hermetic', 'local', 'armlocal', 'none']:
+  assert(0)
+
+if sdl_mode == 'none':
+  # NOTE: do not export multimedia syscalls unless we are using sdl
+  syscall_gen_flags='-c -f Video -f Audio -f Multimedia'
+else:
+  syscall_gen_flags='-c'
+
+syscall_gen_flags += ' -a ${TARGET_ARCHITECTURE} -s ${TARGET_SUBARCH}'
+
+env.Append(SYSCALL_GEN_FLAGS=syscall_gen_flags)
+
+# Set up the sdl_env
+# NOTE: we try to use sdl_env as litte as possible
+if sdl_mode == 'none':
+  sdl_env = env.Clone()
+else:
+  sdl_env = env.Clone()
+  sdl_env.Append(CPPDEFINES=['HAVE_SDL'])
+
+  sdl_env.Tool('sdl')
+  print '=' * 70
+  print 'SDL build (%s) enabled for %s' % (sdl_mode, sdl_env['BUILD_TYPE'])
+  print sdl_env.subst('Using version in ${SDL_DIR}')
+  print '=' * 70
+
+  # TODO(robertm): this should probably go into "Tool"
+  if env.Bit('windows'):
+    if sdl_env.Bit('debug'):
+      sdl_env.Append(LINKFLAGS = ['/SUBSYSTEM:CONSOLE'])
+    else:
+      sdl_env.Append(LINKFLAGS = ['/SUBSYSTEM:WINDOWS'])
+
+  if env.Bit('mac'):
+    env_sdlmain = sdl_env.Clone()
+    # TODO(robertm): explain why we need to disable this warning
+    env_sdlmain.FilterOut(CCFLAGS=['-Werror'])
+    ldr_inputs += [
+        env_sdlmain.ComponentObject(
+            'SDLApplication',
+            '$MAIN_DIR/common/SDLApplication.m'),
+    ]
+
+# NOTE: uses sdl_env
+sdl_env.DualLibrary('sel', ldr_inputs)
+
+
+env.ComponentLibrary('container',
+                     ['generic_container/container.c',
+                      ])
+
+
+env.ComponentLibrary('nacl_xdr',
+                     ['fs/xdr.c',
+                      'fs/obj_proxy.c',
+                      ])
+
+env.DualLibrary('gio_wrapped_desc',
+                ['gio_shm.c',
+                 'gio_shm_unbounded.c',
+                 'gio_nacl_desc.c',
+                ])
+
+
+# NOTE(robertm): these extra libs were orignially only added to the
+#                sel_ldr binary
+# TODO(robertm): see who really needs them and remove
+if env.Bit('windows'):
+  env.Append(
+      LIBS = [
+          'ws2_32',
+          'kernel32',
+          'advapi32',
+          'winmm',
+# TODO(gregoryd): ntdll.lib is required for sem_get_value implementation but
+# it is available in Windows DDK only. The DDK is not
+# in third_party, but we might need to add it if we want to use it.
+#          'ntdll',
+      ],
+  )
+
+# TODO(bradnelson): clean this up more
+sdl_dll = []
+if sdl_mode != 'none' and sdl_mode != 'armlocal':
+  if env.Bit('windows'):
+    sdl_dll += sdl_env.Replicate('$STAGING_DIR', '$SDL_DIR/lib/SDL.dll')
+    sdl_dll += sdl_env.Replicate('.', '$SDL_DIR/lib/SDL.dll')
+    sdl_env.AddPluginPrerequisite(['$SDL_DIR/lib/SDL.dll'])
+  elif env.Bit('mac'):
+    # TODO: why do we replicate this THREE times?
+    sdl_dll += sdl_env.Replicate('$TARGET_ROOT/Frameworks',
+                                 '$SDL_DIR/SDL.framework')
+    sdl_dll += sdl_env.Replicate('$OBJ_ROOT/Frameworks',
+                                 '$SDL_DIR/SDL.framework')
+    sdl_dll += sdl_env.Replicate('$OBJ_ROOT/src/trusted/Frameworks',
+                                 '$SDL_DIR/SDL.framework')
+    sdl_env.AddPluginPrerequisite(['$SDL_DIR/SDL.framework'])
+  elif env.Bit('linux'):
+    if env.Bit('build_x86_32'):
+      sdl_dll += sdl_env.Replicate('$STAGING_DIR',
+                                   '$SDL_DIR/lib/libSDL-1.2.so.0')
+      sdl_dll += sdl_env.Replicate('.',
+                                   '$SDL_DIR/lib/libSDL-1.2.so.0')
+      sdl_env.AddPluginPrerequisite(['$SDL_DIR/lib/libSDL-1.2.so.0'])
+    elif env.Bit('build_x86_64'):
+      sdl_dll += sdl_env.Replicate('$STAGING_DIR',
+                                   '$SDL_DIR/lib64/libSDL-1.2.so.0')
+      sdl_dll += sdl_env.Replicate('.',
+                                   '$SDL_DIR/lib64/libSDL-1.2.so.0')
+      # add AddPluginPrerequisite if you build a 64-bit plugin
+
+VALIDATOR_LIBS = []
+if ((not env.Bit('coverage_enabled') or not env.Bit('windows')) and
+    not env.CrossToolsBuild()):
+
+
+  if env.Bit('target_x86'):
+    VALIDATOR_LIBS += ['ncopcode_utils', 'ncvalidate']
+    if env.Bit('target_x86_64'):
+      VALIDATOR_LIBS += ['ncvalidate_sfi']
+  elif env.Bit('target_arm'):
+    VALIDATOR_LIBS += ['ncvalidate_arm_v2', 'arm_validator_core']
+
+  # NOTE: uses sdl_env
+  SEL_LDR_NODE = sdl_env.ComponentProgram('sel_ldr',
+                                          'sel_main.c',
+                                          EXTRA_LIBS=['sel',
+                                                      'gio_wrapped_desc',
+                                                      'nonnacl_srpc',
+                                                      'nrd_xfer',
+                                                      'nacl_base',
+                                                      'nonnacl_util_c',
+                                                      'google_nacl_imc_c',
+                                                      'container',
+                                                      'platform',
+                                                      'platform_qual_lib',
+                                                      'gio',
+                                                      ] + VALIDATOR_LIBS
+                                                      + DEBUG_LIBS)
+
+  # we need this to build the plugin, so register it here
+  env.AddPluginPrerequisite(SEL_LDR_NODE)
+
+  # NOTE: we do not have segments on ARM
+  if env.Bit('build_x86'):
+    env.ComponentProgram('nacl_ldt_unittest',
+                         'nacl_ldt_unittest.c',
+                         EXTRA_LIBS=['sel',
+                                     'gio_wrapped_desc',
+                                     'platform',
+                                     'gio',
+                                     ] + DEBUG_LIBS)
+  env.Requires(SEL_LDR_NODE, crt)
+  env.Requires(SEL_LDR_NODE, sdl_dll)
+
+env.EnsureRequiredBuildWarnings()
+
+# ----------------------------------------------------------
+# Unit Tests
+# ----------------------------------------------------------
+
+# NOTE: uses sdl and validator
+# TODO(robertm): break this test up in smaller pieces with more managable
+#                dependencies
+gtest_env = sdl_env.Clone()
+
+# This is necessary for unittest_main.c which includes gtest/gtest.h
+# The problem is that gtest.h includes other files expecting the
+# include path to be set.  We do *not*, however, strip out the
+# -pedantic compiler flag for building non-gtest-using source files.
+gtest_env.Prepend(CPPPATH=['${SOURCE_ROOT}/testing/gtest/include'])
+
+if gtest_env.Bit('linux') or gtest_env.Bit('mac'):
+  # because of: gtest-typed-test.h:236:46: error:
+  # anonymous variadic macros were introduced in C99
+  gtest_env.FilterOut(CCFLAGS=['-pedantic'])
+
+unittest_inputs = [
+    'unittest_main.cc',
+    'sel_memory_unittest.cc',
+    'nacl_sync_unittest.cc',
+    'sel_mem_test.cc',
+    'sel_ldr_test.cc',
+]
+
+if (not env.CrossToolsBuild() and
+    (not env.Bit('coverage_enabled') or not env.Bit('windows'))):
+  unit_tests_exe = gtest_env.ComponentProgram('service_runtime_tests',
+                                              unittest_inputs,
+                                              EXTRA_LIBS=['gtest',
+                                                          'sel',
+                                                          'gio_wrapped_desc',
+                                                          'nonnacl_srpc',
+                                                          'nrd_xfer',
+                                                          'nacl_base',
+                                                          'nonnacl_util_c',
+                                                          'google_nacl_imc_c',
+                                                          'platform',
+                                                          'gio',
+                                                          ] + VALIDATOR_LIBS
+                                                          + DEBUG_LIBS)
+  gtest_env.Requires(unit_tests_exe, crt)
+  gtest_env.Requires(unit_tests_exe, sdl_dll)
+
+  node = gtest_env.CommandTest(
+      'gtest_output.xml.out',
+      command=[unit_tests_exe, '--gtest_output=xml:${TARGET}'])
+  gtest_env.AddNodeToTestSuite(node, ['small_tests'],
+      'run_service_runtime_tests')
+
+
+if not env.Bit('coverage_enabled') or not env.Bit('windows'):
+  format_string_test_exe = sdl_env.ComponentProgram('format_string_test',
+                                                    ['format_string_test.c'],
+                                                    EXTRA_LIBS=['sel'])
+  sdl_env.Requires(format_string_test_exe, crt)
+  sdl_env.Requires(format_string_test_exe, sdl_dll)
+
+  node = sdl_env.CommandTest(
+      'format_string_test.out',
+      command=[format_string_test_exe])
+  sdl_env.AddNodeToTestSuite(node, ['small_tests'], 'run_format_string_test')
+
+
+if env.Bit('target_x86_32'):
+  arch_testdata_dir = 'testdata/x86_32'
+elif env.Bit('target_x86_64'):
+  arch_testdata_dir = 'testdata/x86_64'
+else:
+  arch_testdata_dir = 'testdata/' + env['TARGET_ARCHITECTURE']
+
+
+# Doesn't work on windows under coverage.
+# TODO(bradnelson): fix this to work on windows under coverage.
+if ((not env.Bit('windows') or not env.Bit('coverage_enabled')) and
+    not env.CrossToolsBuild()):
+  # NOTE: uses sdl and validator
+  mmap_test_exe = sdl_env.ComponentProgram('mmap_test',
+                                           ['mmap_test.c'],
+                                           EXTRA_LIBS=['sel',
+                                                       'gio_wrapped_desc',
+                                                       'nonnacl_srpc',
+                                                       'nrd_xfer',
+                                                       'nacl_base',
+                                                       'nonnacl_util_c',
+                                                       'google_nacl_imc_c',
+                                                       'platform',
+                                                       'gio',
+                                                       ] + VALIDATOR_LIBS
+                                                        + DEBUG_LIBS)
+  sdl_env.Requires(mmap_test_exe, crt)
+  sdl_env.Requires(mmap_test_exe, sdl_dll)
+
+  # TODO(robertm): This test emits lots of messages to stderr
+  node = sdl_env.CommandTest (
+      "mmap_test.out",
+      command=[mmap_test_exe,
+               env.File(arch_testdata_dir + '/hello_world.nexe')],
+      # TODO(mseaborn): Extend this test to cover the case where the
+      # dynamic code segment is present.
+      osenv='NACL_DISABLE_DYNAMIC_LOADING=1')
+  # This test fails for arm on 32-bit machines running qemu.
+  # So don't run it there.
+  if not (env.Bit('build_arm') and
+          'linux' in sys.platform and
+          'i686' in platform.platform()):
+    sdl_env.AddNodeToTestSuite(node, ['medium_tests'])
+
+  # also seems to have issues with windows coverage
+  # NOTE: uses sdl and validator
+  nacl_sync_cond_test_exe = sdl_env.ComponentProgram(
+      'nacl_sync_cond_test',
+      ['nacl_sync_cond_test.c'],
+      EXTRA_LIBS=['sel',
+                  'gio_wrapped_desc',
+                  'nonnacl_srpc',
+                  'nrd_xfer',
+                  'nacl_base',
+                  'nonnacl_util_c',
+                  'google_nacl_imc_c',
+                  'platform',
+                  'gio',
+                  ] + VALIDATOR_LIBS
+                   + DEBUG_LIBS)
+  sdl_env.Requires(nacl_sync_cond_test_exe, crt)
+  sdl_env.Requires(nacl_sync_cond_test_exe, sdl_dll)
+
+  node = sdl_env.CommandTest(
+      'nacl_sync_cond_test.out',
+      command=[nacl_sync_cond_test_exe])
+  sdl_env.AddNodeToTestSuite(node, ['medium_tests'], 'run_nacl_sync_cond_test')
+
+
+env_cleanser_test_exe = env.ComponentProgram('env_cleanser_test',
+                                             ['env_cleanser_test.c'],
+                                             EXTRA_LIBS=['sel',
+                                                         'gio_wrapped_desc',
+                                                         ] + DEBUG_LIBS)
+node = env.CommandTest(
+    'env_cleanser_test.out',
+    command=[env_cleanser_test_exe])
+env.Requires(env_cleanser_test_exe, crt)
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+# Test nacl_signal
+if (not env.Bit('coverage_enabled') and
+    not env.Bit('target_arm') and
+    not env.IsRunningUnderValgrind()):
+  nacl_signal_exe = env.ComponentProgram('nacl_signal_unittest',
+                                         'nacl_signal_unittest.c',
+                                         EXTRA_LIBS=['sel',
+                                                     'gio_wrapped_desc',
+                                                     'platform',
+                                                     'gio',
+                                                     ] + DEBUG_LIBS)
+  node = env.CommandTest('nacl_signal_unittest.out',
+                         command=[nacl_signal_exe],
+                         exit_status='trusted_sigsegv_or_equivalent')
+
+  env.Requires(nacl_signal_exe, crt)
+  env.AddNodeToTestSuite(node, ['small_tests'], 'run_nacl_signal_test')
+
+
+
+if ((not env.Bit('coverage_enabled') or not env.Bit('windows')) and
+    not env.CrossToolsBuild()):
+  gio_shm_test_exe = sdl_env.ComponentProgram('gio_shm_test',
+                                              ['gio_shm_test.c'],
+                                              EXTRA_LIBS=['sel',
+                                                          'gio_wrapped_desc',
+                                                          'nonnacl_srpc',
+                                                          'nrd_xfer',
+                                                          'nacl_base',
+                                                          'nonnacl_util_c',
+                                                          'google_nacl_imc_c',
+                                                          'platform',
+                                                          'gio',
+                                                          ] + VALIDATOR_LIBS
+                                                          + DEBUG_LIBS)
+  if env.Bit('target_arm'):
+    params = [ '-n', '512', '-m', '2']
+  else:
+    params = []  # default
+  node = env.CommandTest(
+      'gio_shm_test.out',
+      command=[gio_shm_test_exe] + params)
+  env.Requires(gio_shm_test_exe, crt)
+  env.AddNodeToTestSuite(node, ['large_tests'], 'run_gio_shm_test')
+  # no idea why validator gets pulled in, via sel, since
+  # sel_validate_image is not used.  in any case, this is the only way
+  # to get it to link on linux and arm.
+
+  gio_shm_unbounded_test_exe = (
+      sdl_env.ComponentProgram('gio_shm_unbounded_test',
+                               ['gio_shm_unbounded_test.c'],
+                               EXTRA_LIBS=['sel',
+                                           'gio_wrapped_desc',
+                                           'nonnacl_srpc',
+                                           'nrd_xfer',
+                                           'nacl_base',
+                                           'nonnacl_util_c',
+                                           'google_nacl_imc_c',
+                                           'platform',
+                                           'gio',
+                                           ] + VALIDATOR_LIBS
+                                           + DEBUG_LIBS))
+  node = env.CommandTest(
+      'gio_shm_unbounded_test.out',
+      command=[gio_shm_unbounded_test_exe,])
+  env.Requires(gio_shm_unbounded_test_exe, crt)
+  if env.Bit('target_arm'):
+    env.AddNodeToTestSuite(node, ['large_tests_arm_hw_only'],
+                           'run_gio_shm_unbounded_test')
+  else:
+    env.AddNodeToTestSuite(node, ['small_tests'], 'run_gio_shm_unbounded_test')
+
+  gio_nacl_desc_test_exe = sdl_env.ComponentProgram(
+      'gio_nacl_desc_test',
+      ['gio_nacl_desc_test.c'],
+      EXTRA_LIBS=['sel',
+                  'gio_wrapped_desc',
+                  'nonnacl_srpc',
+                  'nrd_xfer',
+                  'nacl_base',
+                  'nonnacl_util_c',
+                  'google_nacl_imc_c',
+                  'platform',
+                  'gio',
+                  ] + VALIDATOR_LIBS
+                  + DEBUG_LIBS)
+
+  import tempfile
+  node = env.CommandTest('gio_nacl_desc_test.out',
+                         command = [gio_nacl_desc_test_exe,
+                                    env.File('testdata/fib_array.nexe'),
+                                    tempfile.mktemp()])
+  env.AddNodeToTestSuite(node, ['small_tests'], 'run_gio_nacl_desc_test')
+
+
+
+check_test_exe = env.ComponentProgram('nacl_check_test',
+                                      ['nacl_check_test.c'],
+                                      EXTRA_LIBS=['sel',
+                                                  'gio_wrapped_desc',
+                                                  'platform',
+                                                  'gio',
+                                                  ] + DEBUG_LIBS)
+node = env.CommandTest(
+    'check_test.out',
+    command=[check_test_exe, '-C'])
+env.Requires(check_test_exe, crt)
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+ABORT_EXIT = '17'  # magic, see nacl_check_test.c
+
+
+node = env.CommandTest(
+    'check_test_death.out',
+    command=[check_test_exe, '-c'],
+    exit_status=ABORT_EXIT)  # abort()
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+if env.Bit('debug'):
+  node = env.CommandTest(
+      'dcheck_test_death.out',
+      command=[check_test_exe, '-d'],
+      exit_status=ABORT_EXIT)  # abort()
+else:
+  node = env.CommandTest(
+      'dcheck_test_death.out',
+      command=[check_test_exe, '-d'])  # no abort()
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+node = env.CommandTest(
+    'check_test_always_death.out',
+    command=[check_test_exe, '-s', '0', '-C'])  # no abort
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+node = env.CommandTest(
+    'check_test_always_death.out',
+    command=[check_test_exe, '-s', '0', '-c'],
+    exit_status=ABORT_EXIT)  # abort
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+node = env.CommandTest(
+    'dcheck_test_never_death.out',
+    command=[check_test_exe, '-s', '0', '-d'])  # no abort
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+node = env.CommandTest(
+    'dcheck_test_always_death.out',
+    command=[check_test_exe, '-s', '1', '-d'],
+    exit_status=ABORT_EXIT)  # abort()
+env.AddNodeToTestSuite(node, ['small_tests'])
+
+
+# Mac does not support thread local storage via "__thread" so do not run this
+# test on Mac.
+if not env.Bit('mac'):
+  # Note that this test hangs in pthread_join() on ARM QEMU.
+  TEST_SUITES = ['small_tests']
+  if env.Bit('target_arm'):
+    TEST_SUITES = ['small_tests_arm_hw_only']
+
+  nacl_tls_unittest = env.ComponentProgram('nacl_tls_unittest',
+                                           ['nacl_tls_unittest.c'],
+                                           EXTRA_LIBS=['platform',
+                                                       'gio'])
+  node = env.CommandTest('nacl_tls_unittest.out',
+                         command=[nacl_tls_unittest])
+  env.AddNodeToTestSuite(node, TEST_SUITES, 'run_nacl_tls_unittest')
+
+# Test that sel_ldr does not crash if the executable file cannot be opened.
+node = env.CommandSelLdrTestNacl(
+    'sel_ldr_exe_not_found.out',
+    command=['name_of_file_that_does_not_exist.nexe'],
+    exit_status='1')
+env.AddNodeToTestSuite(node, ['small_tests'], 'run_sel_ldr_exe_not_found_test')
+
+# ----------------------------------------------------------
+# Small tests with canned binaries
+# ----------------------------------------------------------
+
+# Do not run when building tools to run on x86-32 but to analyze the
+# arm instruction set
+if not env.CrossToolsBuild():
+  node = env.CommandSelLdrTestNacl(
+      'fuzz_nullptr_test.out',
+      sel_ldr_flags=['-F'],
+      command = [env.File(arch_testdata_dir + '/nullptr.nexe')],
+      exit_status = '0')
+  env.AddNodeToTestSuite(node, ['small_tests'], 'run_fuzz_nullptr_test')
+
+# ----------------------------------------------------------
+# Integration Tests
+# ----------------------------------------------------------
+
+# Doesn't work on windows under coverage.
+# TODO(bradnelson): fix this to work on windows under coverage.
+# NOTE: uses sdl and validator
+if ((not env.Bit('windows') or not env.Bit('coverage_enabled')) and
+    not env.CrossToolsBuild()):
+  obj_proxy_test_inputs = [ 'fs/obj_proxy_test.c', ]
+  obj_proxy_test = sdl_env.ComponentProgram('obj_proxy_test',
+                                            obj_proxy_test_inputs,
+                                            EXTRA_LIBS=['sel',
+                                                        'gio_wrapped_desc',
+                                                        'nonnacl_srpc',
+                                                        'nrd_xfer',
+                                                        'nacl_base',
+                                                        'nonnacl_util_c',
+                                                        'google_nacl_imc_c',
+                                                        'platform',
+                                                        'gio',
+                                                        'nacl_xdr',
+                                                        'container',
+                                                        ] + VALIDATOR_LIBS
+                                                        + DEBUG_LIBS)
+
+
+  node = sdl_env.CommandTest(
+      'obj_proxy_test.out',
+      # NOTE: this is run out of obj/ rather than staging/
+      [obj_proxy_test, '-n', '2048'],
+      size='huge')
+  # TODO(bsy): change this test to use less time -- most of it (on windows)
+  # is in the RNG, so with this will inherently speed up when the RNG is
+  # updated.
+
+  sdl_env.Requires(node, sdl_dll)
+  sdl_env.AddNodeToTestSuite(node, ['small_tests'], 'obj_proxy_tests')
+
+# ----------------------------------------------------------
+# Integration Tests With Canned x86 Binaries
+# ----------------------------------------------------------
+
+# TODO: Create integration test nexes for arm.
+INTEGRATION_TESTS_X86 = [ 'mandel',
+                          'fib_scalar',
+                          'fib_array' ]
+INTEGRATION_TESTS_X86_STDIN_OUT = ['$SCONSTRUCT_DIR/tests/mandel/test',
+                                   '$SCONSTRUCT_DIR/tests/fib/fib_scalar_test',
+                                   '$SCONSTRUCT_DIR/tests/fib/fib_array_test' ]
+
+def AddIntegrationTest(test, location):
+  if not test or not location:
+    return;
+
+  node = env.CommandSelLdrTestNacl(
+      test + '_canned.out',
+      command = [env.File(arch_testdata_dir + '/' + test + '.nexe')],
+      stdin = location + '.stdin',
+      stdout_golden = location + '.stdout',
+      osenv = 'NACL_SRPC_STANDALONE=1'
+      )
+  env.AddNodeToTestSuite(node, ['medium_tests'])
+
+if env.Bit('target_x86'):
+  RE_HELLO = '^(Hello, World!)$'
+  RE_IDENT = '^\[[0-9,:.]*\] (e_ident\+1 = ELF)$'
+
+  node = env.CommandSelLdrTestNacl(
+      'nacl_log.out',
+      command = [env.File(arch_testdata_dir + '/hello_world.nexe')],
+      log_golden = env.File('testdata/hello_world.log'),
+      filter_regex = '"' + RE_HELLO + '|' + RE_IDENT + '"',
+      filter_group_only = 'true',
+      osenv = 'NACL_SRPC_STANDALONE=1'
+      )
+  env.AddNodeToTestSuite(node, ['medium_tests'])
+
+  assert len(INTEGRATION_TESTS_X86) == len(INTEGRATION_TESTS_X86_STDIN_OUT)
+  map(AddIntegrationTest,
+      INTEGRATION_TESTS_X86,
+      INTEGRATION_TESTS_X86_STDIN_OUT)
+
+# ----------------------------------------------------------
+# Death Tests With Canned x86 Binaries
+# ----------------------------------------------------------
+ERROR_WHILE_LOADING = '"^(Error while loading).*' + '(:[^:]*)"'
+
+# TODO: Create death test nexes for arm.
+DEATH_TESTS_X86 = [ 'old_abi',  # hello_world.nexe with an old ABI version
+                    'integer_overflow_while_madvising',
+                    'negative_hole',
+                    'rodata_data_overlap',
+                    'data_not_last',
+                    'text_overlaps_rodata',
+                    'text_overlaps_data',
+                    'text_too_big' ]
+
+NOT_AVAIL_X86_32 = [ ]
+
+NOT_AVAIL_X86_64 = [ 'text_overlaps_rodata',
+                     'text_overlaps_data' ]
+
+def AddDeathTest(test, skip):
+  if not test:
+    return;
+
+  if test in skip:
+    print 'SKIPPING test ', test
+    return;
+
+  node = env.CommandSelLdrTestNacl(
+      test  + '.out',
+      command = [env.File(arch_testdata_dir + '/' + test + '.nexe')],
+      stderr_golden = env.File('testdata/' + test + '.stderr'),
+      filter_regex = ERROR_WHILE_LOADING,
+      filter_group_only = 'true',
+      exit_status = '1')
+  env.AddNodeToTestSuite(node, ['medium_tests'])
+
+
+if env.Bit('target_x86'):
+  # built in tests/nullptr/
+  node = env.CommandSelLdrTestNacl(
+      'nullptr.out',
+      command=[env.File(arch_testdata_dir + '/nullptr.nexe')],
+      exit_status='untrusted_segfault')
+  env.AddNodeToTestSuite(node, ['medium_tests'])
+
+  if env.Bit('build_x86_32'):
+    skip = NOT_AVAIL_X86_32
+  else:
+    skip = NOT_AVAIL_X86_64
+
+  for death_test in DEATH_TESTS_X86:
+    AddDeathTest(death_test, skip)
+
+# ----------------------------------------------------------
+# More Death Tests
+# ----------------------------------------------------------
+if (not env.CrossToolsBuild() and
+    (not env.Bit('coverage_enabled') or not env.Bit('windows'))):
+  # NOTE: uses sdl and validator
+  sel_ldr_thread_death_test_exe = sdl_env.ComponentProgram(
+      'sel_ldr_thread_death_test',
+      ['sel_ldr_thread_death_test.c'],
+      EXTRA_LIBS=['sel',
+                  'gio_wrapped_desc',
+                  'nonnacl_srpc',
+                  'nrd_xfer',
+                  'nacl_base',
+                  'nonnacl_util_c',
+                  'google_nacl_imc_c',
+                  'platform',
+                  'gio',
+                  ] + VALIDATOR_LIBS
+                  + DEBUG_LIBS)
+
+  node = sdl_env.CommandTest(
+      'sel_ldr_thread_death_test.out',
+      command=[sel_ldr_thread_death_test_exe],
+      exit_status='segfault')
+  sdl_env.Requires(node, sdl_dll)
+
+  # TODO(tuduce): Make it work on windows.
+  if not sdl_env.Bit('windows'):
+    sdl_env.AddNodeToTestSuite(node, ['medium_tests'])

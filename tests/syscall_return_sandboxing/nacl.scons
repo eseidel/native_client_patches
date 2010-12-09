@@ -1,0 +1,44 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+# NOTE:  because we want to compile everything to bitcode before linking
+# NOTE:  assembler source files requires special trickery, for now we
+# NOTE:  have hacked tools/llvm/llvm-fake.py
+# NOTE:  to recognize sandboxed_*.S as special
+
+# env's BUILD_ARCH, BUILD_SUBARCH controls what assembly files to use.
+def GetAssemblerFile(env):
+  if env.Bit('build_x86_32'):
+    return 'sandboxed_x86_32.S'
+  elif env.Bit('build_x86_64'):
+    return 'sandboxed_x86_64.S'
+  elif env.Bit('build_arm'):
+    return 'sandboxed_arm.S'
+  else:
+    raise Exception('unknown architecture')
+
+asm_env = env.Clone()
+if asm_env.Bit('bitcode'):
+  asm_env.Replace(CC=env['CC_NATIVE'])
+asm_obj = asm_env.ComponentObject(GetAssemblerFile(env))
+
+env.ComponentProgram('syscall_return_sandboxing.nexe',
+                     ['syscall_return_sandboxing.c', asm_obj])
+node = env.CommandSelLdrTestNacl(
+    'syscall_return_sandboxing.out',
+    command=[env.File('syscall_return_sandboxing.nexe')])
+env.AddNodeToTestSuite(node,
+                       ['small_tests', 'sel_ldr_tests'],
+                       'run_syscall_return_sandboxing_test')
+
+env.ComponentProgram('thread_create_bad_address.nexe',
+                     env.RawSyscallObjects(['thread_create_bad_address.c']))
+node = env.CommandSelLdrTestNacl(
+    'thread_create_bad_address.out',
+    command=[env.File('thread_create_bad_address.nexe')])
+env.AddNodeToTestSuite(node, ['small_tests'],
+                       'run_thread_create_bad_address_test')

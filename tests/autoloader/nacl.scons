@@ -1,0 +1,14 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+env.ComponentProgram('autoloader_default.nexe', 'autoloader_default.c',
+                     EXTRA_LIBS=['srpc', 'google_nacl_imc_c','pthread'])
+
+# Note that the html is required to run this program.
+node = env.Publish('autoloader_default.nexe',
+                   'run',
+                   ['autoloader.html', 'autoloader_default.html'])

@@ -1,0 +1,27 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+
+env.ComponentProgram('mandel_tiled.nexe', 'mandel_tiled.c',
+                     EXTRA_LIBS=['srpc', 'google_nacl_imc_c', 'pthread'])
+
+env.Publish('mandel_tiled.nexe', 'run', 'mandel_tiled.html')
+
+
+env.ComponentProgram('mandel.nexe', 'mandel.c',
+                     EXTRA_LIBS=['srpc', 'google_nacl_imc_c', 'pthread'])
+
+env.Publish('mandel.nexe', 'run', [])
+
+
+node = env.CommandSelLdrTestNacl('mandel_test.out',
+                                 command=[env.File('mandel.nexe')],
+                                 stdin=env.File('test.stdin'),
+                                 stdout_golden=env.File('test.stdout'),
+                                 osenv='NACL_SRPC_STANDALONE=1',
+                                 )
+env.AddNodeToTestSuite(node, ['small_tests', 'sel_ldr_tests'], 'run_mandel')

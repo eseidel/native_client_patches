@@ -1,0 +1,23 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.  Use
+# of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+Import('env')
+
+# TODO(mseaborn): Extend the ARM validator to support this.
+if env.Bit('target_arm'):
+  Return()
+
+# This is needed for #including "gen/..." files, which the header
+# files for the x86-64 validator use.
+env.Append(CPPPATH=['${TARGET_ROOT}'])
+
+if env.Bit('target_x86_64'):
+  validator_libs = ['ncvalidate_sfi', 'ncvalidate']
+else:
+  validator_libs = ['ncvalidate']
+
+env.ComponentProgram('ncval_stubout',
+                     'ncstubout.c',
+                     EXTRA_LIBS=validator_libs + ['platform', 'gio'])

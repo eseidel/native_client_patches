@@ -1,0 +1,29 @@
+target triple = "armv7-none-linux-gnueabi"
+
+%struct.TWO_CHARS = type { i8, i8 }
+%struct.TWO_INTS = type { i32, i32 }
+%struct.TWO_SHORTS = type { i16, i16 }
+
+define void @bar_chars(%struct.TWO_CHARS %z) nounwind {
+entry:
+  tail call void @foo_chars(%struct.TWO_CHARS %z) nounwind
+  ret void
+}
+
+define void @bar_ints(%struct.TWO_INTS %z) nounwind {
+entry:
+  tail call void @foo_ints(%struct.TWO_INTS %z) nounwind
+  ret void
+}
+
+declare void @foo_ints(%struct.TWO_INTS)
+
+define void @bar_shorts(%struct.TWO_SHORTS %z) nounwind {
+entry:
+  tail call void @foo_shorts(%struct.TWO_SHORTS %z) nounwind
+  ret void
+}
+
+declare void @foo_shorts(%struct.TWO_SHORTS)
+
+declare void @foo_chars(%struct.TWO_CHARS)

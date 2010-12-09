@@ -1,0 +1,362 @@
+# Copyright (c) 2008 The Native Client Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+#
+# This file now builds two plugin shared libraries, NPAPI and PPAPI, plus tests.
+
+# TODO(polina): for Mac build check if no longer need .r files and/or document
+# target browsers for each bundle target.
+
+Import('env')
+
+# NOTE(robertm): currently needed for env.ComponentObject magic below
+env.Prepend(
+    CPPPATH=['${SOURCE_ROOT}/native_client/src/third_party/npapi/files/include']
+)
+
+# NOTE(robertm): needed for a bunch of includes from X11/Intrinsic.h
+env.Prepend(
+    CPPPATH=['${SOURCE_ROOT}/third_party/libxt/include']
+)
+
+if not env.Bit('mac'):
+  env['COMPONENT_STATIC'] = False
+
+
+plugin_env = env.Clone()
+if env.Bit('linux'):
+    plugin_env.Append(
+        CCFLAGS=['-fPIC', '-Wno-long-long',],
+        CPPDEFINES = ['XP_UNIX', 'MOZ_X11'],
+        # Catch unresolved symbols in libraries.
+        LINKFLAGS=['-Wl,-z,defs'],
+        )
+
+    # We usually try to build things statically, but the plugin is a .so
+    plugin_env.FilterOut(LINKFLAGS=['-static'])
+
+if env.Bit('mac'):
+    plugin_env.Append(
+        CCFLAGS=['-Wno-long-long',
+                 # warning: Basically all of our 2d Mac stuff is deprecated.
+                 '-Wno-deprecated',
+                 '-Wno-deprecated-declarations'],
+        CPPDEFINES = [
+            'XP_MACOSX',
+            'XP_UNIX',
+            ['TARGET_API_MAC_CARBON', '1'],
+            # TODO(robertm): NO_X11 may be obsolete
+            'NO_X11',
+            'USE_SYSTEM_CONSOLE',
+        ],
+        FRAMEWORKS = ['Carbon'],
+        # TODO(jrg): it's a little awkward to, when you want a bundle:
+        #  1) add -bundle to your LINKFLAGS
+        #  2) create a "program" (which shows up in all_programs target)
+        #  3) create a bundle out of it, specifying the bundle extension
+        # Ideally that all happens inside a CompleteBundlePseudoBuilder().
+        LINKFLAGS = ['-bundle', '-framework', 'Foundation']
+    )
+
+if env.Bit('windows'):
+    plugin_env.Append(
+        CCFLAGS = ['/EHsc',],
+        CPPDEFINES = ['XP_WIN', 'WIN32', '_WINDOWS'],
+    )
+    plugin_env.Tool('atlmfc_vc80')
+
+# Both the NPAPI and PPAPI plugins depend upon the code that is in the
+# top (plugin) directory and on a large set of libraries.
+common_inputs = [
+    # TODO: we should put a scons file in src/third_party_mod/nacl_plugin
+    #       which exports a library which is then linked in.
+    #       Currently this results inlink time symbol clashes
+    # generic URL-origin / same-domain handling
+    'origin.cc',
+    # Portable plugin code
+    'browser_interface.cc',
+    'connected_socket.cc',
+    'desc_based_handle.cc',
+    'method_map.cc',
+    'nexe_arch.cc',
+    'plugin.cc',
+    'portable_handle.cc',
+    'scriptable_handle.cc',
+    'service_runtime.cc',
+    'shared_memory.cc',
+    'socket_address.cc',
+    'srpc_client.cc',
+    'srt_socket.cc',
+    'stream_shm_buffer.cc',
+    'string_encoding.cc',
+    'utility.cc',
+]
+
+if env.Bit('target_x86'):
+  common_inputs += ['arch_x86/sandbox_isa.cc']
+elif env.Bit('target_arm'):
+  common_inputs += ['arch_arm/sandbox_isa.cc']
+else:
+  # Unrecognized architecture - this is a build failure.
+  print "Unrecognized architecture: %s" % env['TARGET_ARCHITECTURE']
+  Return()
+
+common_objs = plugin_env.ComponentObject(common_inputs)
+
+# The common libraries are those used by both the NPAPI and PPAPI plugins.
+# They and the NPAPI/PPAPI specific libraries must come before OS libraries,
+# because they may generate references that are resolved by the OS libraries.
+# E.g., libplatform.a contains references to symbols from libcrypto.so.
+common_libs = [
+    'nonnacl_util',
+    'nonnacl_srpc',
+    'gio_wrapped_desc',
+    'nrd_xfer',
+    'nacl_base',
+    'google_nacl_imc_c',
+    'platform',
+    'platform_qual_lib',
+    'gio',
+    'expiration',
+    'sel',
+]
+
+os_libs = [ ]
+if plugin_env.Bit('linux'):
+  os_libs += ['dl', 'Xt', 'X11', 'crypto']
+
+if plugin_env.Bit('windows'):
+  os_libs += ['gdi32', 'user32', ]
+
+
+###############################################################################
+# NPAPI Plugin Build
+###############################################################################
+
+# The NPAPI plugin build is for use as an out-of-process plugin on Chrome
+# and for browsers other than Chrome.  It relies on code in the npapi
+# subdirectory and the google_nacl_npruntime library, which performs NPAPI
+# proxying between the plugin and NaCl NPAPI modules.
+npapi_inputs = [
+    # NPAPI specific code
+    plugin_env.ComponentObject(
+        'np_entry',
+        '${MAIN_DIR}/src/third_party_mod/npapi_plugin/np_entry.cc'),
+    plugin_env.ComponentObject(
+        'npn_gate',
+        '${MAIN_DIR}/src/third_party_mod/npapi_plugin/npn_gate.cc'),
+    'npapi/async_receive.cc',
+    'npapi/browser_impl_npapi.cc',
+    'npapi/closure.cc',
+    'npapi/multimedia_socket.cc',
+    'npapi/npapi_native.cc',
+    'npapi/npp_gate.cc',
+    'npapi/npp_launcher.cc',
+    'npapi/plugin_npapi.cc',
+    'npapi/ret_array.cc',
+    'npapi/scriptable_impl_npapi.cc',
+    'npapi/video.cc',
+]
+
+if env.Bit('windows'):
+  if not env.Bit('chrome'):
+    npapi_inputs += [
+        'win/nacl_plugin.def',
+        env.RES('win/nacl_plugin.rc'),
+    ]
+elif env.Bit('mac'):
+  npapi_inputs += [
+      'osx/open_mac_file.cc',
+  ]
+
+npGoogleNaClPlugin = 'npGoogleNaClPlugin'
+
+# Because of the libraries difference, the NPAPI plugin needs a distinct
+# environment.
+npapi_env = plugin_env.Clone()
+npapi_libs = common_libs + [ 'google_nacl_npruntime', ]
+if npapi_env['SHARED_LIBS_SPECIAL']:
+  npapi_env.Append(LIBS=[l + '_shared' for l in npapi_libs] + os_libs)
+else:
+  npapi_env.Append(LIBS=npapi_libs + os_libs)
+
+if not npapi_env.Bit('mac'):
+  if npapi_env.Bit('chrome'):
+    plugin = npapi_env.ComponentLibrary(npGoogleNaClPlugin,
+                                        common_objs + npapi_inputs,
+                                        COMPONENT_STATIC=True)
+  else:
+    plugin = npapi_env.ComponentLibrary(npGoogleNaClPlugin,
+                                        common_objs + npapi_inputs,
+                                        no_import_lib=True)
+
+  # we need this to build the plugin, so register it here
+  npapi_env.AddPluginPrerequisite([plugin])
+else:
+  REZ = '/Developer/Tools/Rez'
+  npapi_env.Command(target='npGoogleNaClPlugin.rsrc',
+                    source='osx/npGoogleNaClPlugin.r',
+                    action=[Action(REZ + ' -o ${TARGET} ${SOURCE} -useDF')])
+  exe = npapi_env.ComponentProgram(npGoogleNaClPlugin,
+                                   common_objs + npapi_inputs,
+                                   no_import_lib=True)
+  # Bundle pattern can be found in
+  # site_scons/site_tools/target_platform_mac.py
+  bundle_name = '${STAGING_DIR}/' + npGoogleNaClPlugin + '.bundle'
+  npapi_env.Bundle(bundle_name,
+                   BUNDLE_EXE = exe,
+                   BUNDLE_PKGINFO_FILENAME = 0,
+                   BUNDLE_RESOURCES = 'npGoogleNaClPlugin.rsrc',
+                   BUNDLE_INFO_PLIST = 'osx/Info.plist')
+  # we need this to build the plugin, so register it here
+  npapi_env.AddPluginPrerequisite([bundle_name])
+
+
+###############################################################################
+# NPAPI Plugin Test
+###############################################################################
+
+# The test for the NPAPI plugin mostly determines that the proper entry
+# points are defined and that there are no unresolved external symbols in
+# the .so.
+
+# Rather than link nacl_plugin_code statically, this unittest uses dlopen.
+
+if env.Bit('target_x86'):
+  if env.Bit('linux'):
+    unittest = env.ComponentProgram('plugin_unittest',
+                                    'npapi/plugin_unittest.cc',
+                                    no_import_lib=True,
+                                    EXTRA_LIBS=['dl'])
+    node = env.CommandTest('plugin_unittest.out',
+                           command=[unittest, plugin])
+    env.AddNodeToTestSuite(node, ['small_tests'], 'run_plugin_unittest')
+  elif env.Bit('mac'):
+    unittest = env.ComponentProgram('plugin_unittest',
+                                    'npapi/plugin_unittest.cc')
+    node = env.CommandTest('plugin_unittest.out',
+                           command=[unittest, exe])
+    env.AddNodeToTestSuite(node, ['small_tests'], 'run_plugin_unittest')
+
+
+# This test fails to link in our ARM cross-compile environment because
+# the toolchain tarball lacks libraries, specifically libSM.so.6.
+if not env.Bit('target_arm'):
+  string_encoding_test = env.ComponentProgram(
+      'string_encoding_test',
+      ['string_encoding_test.cc',
+       env.ComponentObject('string_encoding_for_test',
+                           'string_encoding.cc')],
+      EXTRA_LIBS=['platform', 'gio'] + os_libs)
+  node = env.CommandTest('string_encoding_test.out',
+                         command=[string_encoding_test])
+  env.AddNodeToTestSuite(node, ['small_tests'], 'run_string_encoding_test')
+
+
+###############################################################################
+# PPAPI Plugin Build
+###############################################################################
+
+# The PPAPI (Pepper v2) plugin is used in Chrome only.
+#
+# We build a shared library with this build script to allow easier build
+# testing. This library can also be loaded into Chrome using --no-sandbox
+# --register-pepper-plugins="path/to/library;application/x-ppapi-nacl-srpc".
+#
+# The .gyp files include rules used to link the plugin statically into Chrome.
+# (This is still work in progress as of mid-Nov 2010.)
+#
+# The PPAPI plugin uses code from
+#   trusted/plugin/ppapi/ - for implementing NaCl as a trusted PPAPI plugin
+#   shared/ppapi_proxy/ - for proxying PPAPI to NaCl modules
+ppapi_inputs = [
+    'ppapi/array_ppapi.cc',
+    'ppapi/browser_interface_ppapi.cc',
+    'ppapi/module_ppapi.cc',
+    'ppapi/plugin_ppapi.cc',
+    'ppapi/file_downloader.cc',
+    'ppapi/scriptable_handle_ppapi.cc',
+    'ppapi/var_utils.cc',
+]
+
+ppNaClPlugin = 'ppNaClPlugin'
+
+ppapi_env = plugin_env.Clone()
+
+# Set #define for NACL_PPAPI. Force the source files to rebuild with it. Use an
+# alternate prefix to avoid "two environments with different actions" error.
+ppapi_env.Append(CPPDEFINES = ['NACL_PPAPI'])
+ppapi_env.Replace(OBJPREFIX='ppapi_', SHOBJPREFIX='ppapi_');
+
+ppapi_libs = common_libs + [ 'ppapi_cpp', 'ppapi_browser', 'nonnacl_srpc' ]
+if ppapi_env['SHARED_LIBS_SPECIAL']:
+  ppapi_env.Append(LIBS=[l + '_shared' for l in ppapi_libs] + os_libs)
+else:
+  ppapi_env.Append(LIBS=ppapi_libs + os_libs)
+
+if not ppapi_env.Bit('chrome'):
+  if not env.Bit('mac'):  # linux, windows, arm
+    # This builds with
+    #   MODE=... ppNaClPlugin sel_ldr sdl=none
+    # with the output going to
+    #   scons-out/.../staging/libppNaClPlugin.so on Linux and
+    #   scons-out/.../staging/ppNaClPlugin.dll on Windows.
+    ppapi_plugin = ppapi_env.ComponentLibrary(ppNaClPlugin,
+                                              common_inputs + ppapi_inputs,
+                                              no_import_lib=True)
+    # we need this to build the plugin, so register it here
+    ppapi_env.AddPluginPrerequisite([ppapi_plugin])
+  else:  # mac
+    # This builds with
+    #   MODE=... scons-out/.../staging/ppNaClPlugin.bundle sel_ldr sdl=none.
+    # This places both ppNaClPlugin.bundle/ and sel_ldr into staging/.
+    # One must either set $NACL_SEL_LDR=path/to/sel_ldr or manually
+    # copy sel_ldr to path/to/ppNaClPlugin.bundle/Contents/Resources/.
+    # (the 2nd option has been disabled:
+    # see ../nonnacl_util/osx/get_plugin_dirname.mm).
+    REZ = '/Developer/Tools/Rez'
+    ppapi_env.Command(target='ppNaClPlugin.rsrc',
+                      source='osx_ppapi/ppNaClPlugin.r',
+                      action=[Action(REZ + ' -o ${TARGET} ${SOURCE} -useDF')])
+    ppapi_plugin = ppapi_env.ComponentProgram(ppNaClPlugin,
+                                              common_inputs + ppapi_inputs,
+                                              no_import_lib=True)
+    # Bundle pattern can be found in
+    # site_scons/site_tools/target_platform_mac.py
+    bundle_name = '${STAGING_DIR}/' + ppNaClPlugin + '.bundle'
+    ppapi_env.Bundle(bundle_name,
+                     BUNDLE_EXE = ppapi_plugin,
+                     BUNDLE_PKGINFO_FILENAME = 0,
+                     BUNDLE_RESOURCES = 'ppNaClPlugin.rsrc',
+                     BUNDLE_INFO_PLIST = 'osx_ppapi/Info.plist')
+    # we need this to build the plugin, so register it here
+    ppapi_env.AddPluginPrerequisite([bundle_name])
+
+
+###############################################################################
+# PPAPI Plugin Test
+###############################################################################
+
+# Rather than link ppNaClPlugin statically, this unittest uses the dynamic
+# library.  Note that these tests do not yet run on ARM.
+unittest_sources = ['ppapi/dylib_unittest.cc', 'ppapi/plugin_unittest.cc']
+if env.Bit('target_x86'):
+  if env.Bit('linux'):
+    unittest = env.ComponentProgram('ppapi_plugin_unittest',
+                                    unittest_sources,
+                                    no_import_lib=True,
+                                    EXTRA_LIBS=['dl'])
+  elif env.Bit('mac'):
+    unittest = env.ComponentProgram('ppapi_plugin_unittest', unittest_sources)
+  elif env.Bit('windows'):
+    unittest = env.ComponentProgram('ppapi_plugin_unittest',
+                                    unittest_sources,
+                                    no_import_lib=True)
+  node = env.CommandTest('ppapi_plugin_unittest.out',
+                         command=[unittest,
+                                  ppapi_plugin,
+                                  env['BUILD_ISA_NAME']])
+  env.AddNodeToTestSuite(node, ['small_tests'], 'run_ppapi_plugin_unittest')
+
+
+# TODO(polina,sehr): add a test for the PPAPI plugin on ARM.

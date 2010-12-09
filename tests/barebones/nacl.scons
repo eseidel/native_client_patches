@@ -1,0 +1,94 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+# Use of "-nostdlib" means these tests produce statically-linked
+# executables.  This does not work with the test runner for
+# nacl-glibc, which always runs the executables via ld.so.  However,
+# we want to keep building the tests.
+# TODO(mseaborn): To fix this, either switch these tests to
+# dynamically link against libc, or make use of ld.so optional.
+if env.Bit('nacl_glibc'):
+  TEST_SUITES = ['broken_tests']
+  TEST_SUITES_BARE = ['broken_tests']
+else:
+  TEST_SUITES = ['small_tests', 'sel_ldr_tests']
+  TEST_SUITES_BARE = ['small_tests', 'sel_ldr_tests', 'barebones_tests']
+
+LINK_FLAGS_MULTILIB = ['-nostdlib']
+
+if env.Bit('build_x86') and not env.Bit('bitcode'):
+  if env.Bit('build_x86_32'):
+    LINK_FLAGS_MULTILIB.append('-m32')
+  elif env.Bit('build_x86_64'):
+    LINK_FLAGS_MULTILIB.append('-m64')
+  else:
+    print "ERROR: unknown BUILD_SUBARCH: ", env['BUILD_SUBARCH']
+    assert 0
+
+env.Replace(LIBS=[],
+            EXTRA_LIBS=[],
+            LINKFLAGS=LINK_FLAGS_MULTILIB)
+
+env.Append(CFLAGS='-Wno-long-long')
+
+# This setting will affect the barebones_regs.c test
+if env.Bit('build_arm'):
+  env.Append(CPPDEFINES='SMALL_REGS_TEST')
+
+
+
+# NOTE: the x86 linker wants _start() to be the very first function
+FAKE_STARTUP = env.ComponentObject('fake_startup', 'fake_startup.c')
+
+for basename in ['addr_modes',
+                 'exit',
+                 'fib',
+                 'hello_world',
+                 'long_long',
+                 'negindex',
+                 'regs',
+                 'reloc',
+                 'switch',
+                 'vtable',
+                 'vaarg',
+                 ]:
+  # c.f. http://code.google.com/p/nativeclient/issues/detail?id=783
+  if env.Bit('build_arm') and basename == 'vaarg': continue
+
+
+  # TODO(kcc): the barebones tests confuse the current nacl-ified valgrind.
+  if env.IsRunningUnderValgrind(): continue
+
+  src = 'barebones_' + basename + '.c'
+  nexe = 'barebones_' + basename + '.nexe'
+  out = 'barebones_' + basename + '.out'
+  test = 'run_barebones_' + basename + '_test'
+  test = 'run_barebones_' + basename + '_test'
+  env.ComponentProgram(nexe, [FAKE_STARTUP, src])
+
+  # NOTE: we avoid using zero as the "good" exit status and just
+  #       arbitrarily picked 55. All tests are coded to follow this model.
+  node = env.CommandSelLdrTestNacl(
+      out,
+      command=[env.File(nexe)],
+      exit_status='55',)
+  env.AddNodeToTestSuite(node,
+                         TEST_SUITES_BARE,
+                         test)
+
+
+# a test that the validador can handle an empty segment after the last
+# real segment. The gold linker produces files this
+if env.Bit('build_arm') and not env.Bit('bitcode'):
+  nexe = '${SCONSTRUCT_DIR}/tests/prebuilt/arm/gold-barebones_hello_world.nexe'
+  node = env.CommandSelLdrTestNacl(
+      'gold-barebones_hello_world.out',
+      command=[env.File(nexe)],
+      exit_status='55',)
+  env.AddNodeToTestSuite(node,
+                         TEST_SUITES,
+                         'run_gold-barebones_hello_world_test')

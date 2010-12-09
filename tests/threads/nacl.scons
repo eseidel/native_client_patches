@@ -1,0 +1,81 @@
+# -*- python -*-
+# Copyright 2008 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+
+Import('env')
+
+# NOTE: the arm emulator does not handle atomic ops properly
+# NOTE: the default setting of 10k rounds is too slow on ARM
+TEST_SUITES = ['small_tests']
+EXTRA_ARGS = ['100']
+
+# TODO(robertm): research why the bitcode clause is necessary
+# NOTE(jasonwkim): [2010/08/31 13:49:46 PDT (Tuesday)]
+# small_thread_test has problem with arm/qemu (also fails on x86-32-pnacl)
+
+if env.Bit('target_arm') or env.Bit('bitcode'):
+  TEST_SUITES = ['small_tests_arm_hw_only']
+
+if env.IsRunningUnderValgrind():
+  EXTRA_ARGS = ['20']
+
+env.ComponentProgram('thread_test.nexe',
+                     'thread_test.c',
+                     EXTRA_LIBS=['pthread'],
+                     )
+node = env.CommandSelLdrTestNacl(
+    'thread_test.out',
+    command=[env.File('thread_test.nexe')] + EXTRA_ARGS,
+    # TODO: investigate why this is slow on old linux system
+    size='large',
+    )
+# NOTE: this should be a pretty slow test, but its been sped up
+# to not tickle bug 853
+env.AddNodeToTestSuite(node, TEST_SUITES, 'run_thread_test')
+
+
+env.ComponentProgram('simple_thread_test.nexe',
+                     'simple_thread_test.c',
+                     EXTRA_LIBS=['pthread'],
+                     )
+node = env.CommandSelLdrTestNacl(
+    'simple_thread_test.out',
+    command=[env.File('simple_thread_test.nexe')],
+    size='small',
+    )
+env.AddNodeToTestSuite(node, TEST_SUITES, 'run_simple_thread_test')
+
+env.ComponentProgram('race_test.nexe',
+                     'race_test.c',
+                     EXTRA_LIBS=['pthread'],
+                     )
+node = env.CommandSelLdrTestNacl(
+    'race_test.out',
+    command=[env.File('race_test.nexe')],
+    size='small',
+    )
+env.AddNodeToTestSuite(node, TEST_SUITES + ['tsan_bot_tests'], 'run_race_test')
+
+env.ComponentProgram('main_thread_pthread_exit_test.nexe',
+                     'main_thread_pthread_exit_test.c',
+                     EXTRA_LIBS=['pthread'],
+                     )
+node = env.CommandSelLdrTestNacl(
+    'main_thread_pthread_exit_test.out',
+    command=[env.File('main_thread_pthread_exit_test.nexe')],
+    size='small',
+    )
+env.AddNodeToTestSuite(node, TEST_SUITES, 'run_main_thread_pthread_exit_test')
+
+env.ComponentProgram('cond_wait_test.nexe',
+                     'cond_wait_test.cc',
+                     EXTRA_LIBS=['pthread'],
+                     )
+node = env.CommandSelLdrTestNacl(
+    'cond_wait_test.out',
+    command=[env.File('cond_wait_test.nexe')],
+    size='small',
+    )
+env.AddNodeToTestSuite(node, TEST_SUITES, 'cond_wait_test')

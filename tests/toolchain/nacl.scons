@@ -1,0 +1,125 @@
+# Copyright 2009 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+# force inclusion of entire library, so that we can validate it
+# NOTE: This approach does not work for -lc because of tons of
+#       undefined symbols which would have to be stubbed out
+wa_env = env.Clone()
+if not wa_env.Bit('bitcode') and not wa_env.Bit('nacl_glibc'):
+  # NOTE: the pnacl linker does not understand '-Wl,-whole-archive'
+  # c.f. http://code.google.com/p/nativeclient/issues/detail?id=943
+  # NOTE: This test does not build successfully with nacl-glibc yet.
+  wa_env.Prepend(LINKFLAGS=['-Wl,-whole-archive',
+                            '-lgcc',
+                            '-lm',
+                            '-lnacl',
+                            '-lsrpc',
+                            '-lpthread',
+                            '-Wl,-no-whole-archive'])
+
+
+nexe = wa_env.ComponentProgram('dummy.nexe', 'dummy.c')
+node = wa_env.CommandValidatorTestNacl('whole_archive_test.out',
+                                       image=[nexe])
+wa_env.AddNodeToTestSuite(node,
+                          ['toolchain_tests', 'small_tests'],
+                          'run_whole_archive_test')
+
+nexe = env.ComponentProgram('setlongjmp.nexe', 'setlongjmp.c')
+node = env.CommandSelLdrTestNacl('setlongjmp.out',
+                                 command=[nexe],
+                                 exit_status='55')
+env.AddNodeToTestSuite(node,
+                       ['toolchain_tests','small_tests'],
+                       'run_setlongjmp_test')
+
+
+# NOTE: this currently only works for PNaCl, c.f:
+# http://code.google.com/p/nativeclient/issues/detail?id=968
+if env.Bit('bitcode'):
+  INITFINIT_TESTS=['toolchain_tests', 'small_tests']
+else:
+  INITFINIT_TESTS=['broken_tests']
+
+nexe = env.ComponentProgram('initfini.nexe', 'initfini.c')
+node = env.CommandSelLdrTestNacl('initfini.out',
+                                 command=[nexe],
+                                 stdout_golden=env.File('initfini.stdout'))
+env.AddNodeToTestSuite(node, INITFINIT_TESTS, 'run_initfini_test')
+
+
+# NOTE: the tests below break easily under valgrid and since
+#       they do not exercise malloc/free we exclude
+if env.IsRunningUnderValgrind():
+  Return()
+
+
+sloppy_env = env.Clone()
+sloppy_env.FilterOut(CFLAGS=['-pedantic', '-O2'])
+sloppy_env.FilterOut(CCFLAGS=['-pedantic', '-O2'])
+
+
+nexe = sloppy_env.ComponentProgram('return_address.nexe', 'return_address.c')
+node = sloppy_env.CommandSelLdrTestNacl('return_address.out',
+                                        command=[nexe],
+                                        exit_status='55')
+sloppy_env.AddNodeToTestSuite(node,
+                              ['toolchain_tests', 'small_tests'],
+                              'run_return_address_test')
+
+# NOTE: we assume that the incoming env contains '-O2', '-fomit-frame-pointer'
+def MakeEnv(use_opts, use_frames):
+  new_env = env.Clone()
+  new_env.Append(CPPDEFINES=['TARGET_FULLARCH=${TARGET_FULLARCH}'])
+  new_env.FilterOut(CFLAGS=['-pedantic'])
+  new_env.FilterOut(CCFLAGS=['-pedantic'])
+  if use_frames:
+    new_env.FilterOut(CFLAGS=['-fomit-frame-pointer'])
+    new_env.FilterOut(CCFLAGS=['-fomit-frame-pointer'])
+  else:
+    new_env.Append(CFLAGS=['-fomit-frame-pointer'])
+    new_env.Append(CCFLAGS=['-fomit-frame-pointer'])
+  if use_opts:
+    new_env.Append(CFLAGS=['-O2'])
+    new_env.Append(CCFLAGS=['-O2'])
+  else:
+    new_env.FilterOut(CFLAGS=['-O2'])
+    new_env.FilterOut(CCFLAGS=['-O2'])
+  return new_env
+
+ENVIRONMENTS_TO_TRY = [ ('noopt_frame', MakeEnv(False, True)),
+                        ('noopt_noframe', MakeEnv(False, False)),
+                        ('opt_frame', MakeEnv(True, True)),
+                        ('opt_noframe', MakeEnv(True, False)),
+                        ]
+
+for tag, e in ENVIRONMENTS_TO_TRY:
+  for src in ['unwind_trace.cc',
+              'stack_frame.cc',
+              'eh_virtual_dtor.cc',
+              'eh_loop_single.cc',
+              'eh_loop_many.cc',
+              'eh_catch_many.cc',
+              'eh_loop_break.cc']:
+    tests = ['toolchain_tests', 'small_tests']
+    # http://code.google.com/p/nativeclient/issues/detail?id=720
+    if e.Bit('target_arm') and src != 'stack_frame.cc':
+      tests = ['broken_tests']
+    # http://code.google.com/p/nativeclient/issues/detail?id=1106
+    if src =='unwind_trace.cc':
+      if e.Bit('nacl_pic') and e.Bit('target_x86_64'):
+        tests = ['broken_tests']
+
+      # the tracing gets messed up by inlining
+      if tag.startswith('opt'):
+        tests = ['broken_tests']
+    name = src.split('.')[0] + '_' + tag
+    nobj = e.ComponentObject(name + '.o', src)
+    nexe = e.ComponentProgram(name + '.nexe', nobj)
+    node = e.CommandSelLdrTestNacl(name + '.out',
+                                   command=[nexe],
+                                   exit_status='55')
+    e.AddNodeToTestSuite(node, tests, 'run_' + name  +'_test')

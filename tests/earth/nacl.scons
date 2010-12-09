@@ -1,0 +1,37 @@
+# -*- python -*-
+# Copyright 2010 The Native Client Authors.  All rights reserved.
+# Use of this source code is governed by a BSD-style license that can
+# be found in the LICENSE file.
+
+Import('env')
+
+nexe = env.ComponentProgram('earth.nexe', 'earth.cc',
+                            EXTRA_LIBS=['av', 'srpc', 'm', 'pthread'])
+
+env.Publish('earth.nexe', 'run', ['earth.html'])
+
+node = env.DemoSelLdrNacl('demo_earth', nexe, args=['-m8', '-f5000'])
+# Note: Make this available from top level
+Alias('demo_earth', node)
+
+
+node = env.CommandValidatorTestNacl(
+    'earth_test_val.out',
+    image=[env.File('earth.nexe')],
+    )
+env.AddNodeToTestSuite(node, ['validator_tests', 'small_tests'], 'run_earth')
+
+# TODO(robertm): enable arm support ASAP
+if env.Bit('target_arm') or env.Bit('build_x86_64'):
+  Return()
+
+node = env.BrowserTester(
+    'earth_browser_test.out',
+    url='earth.html',
+    files=[nexe,
+           env.File('earth.html'),
+           env.File('${SCONSTRUCT_DIR}/tests/nacl_js_lib.js'),
+           ],
+    browser='*firefox',
+    )
+env.AddNodeToTestSuite(node, ['browser_tests'], 'earth_browser_test')
