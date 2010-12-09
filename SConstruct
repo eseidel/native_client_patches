@@ -1869,7 +1869,6 @@ nacl_env.Append(
     'tests/autoloader/nacl.scons',
     'tests/barebones/nacl.scons',
     'tests/bundle_size/nacl.scons',
-    'tests/chromeipc/nacl.scons',
     'tests/contest_issues/nacl.scons',
     'tests/data_not_executable/nacl.scons',
     'tests/dynamic_code_loading/nacl.scons',

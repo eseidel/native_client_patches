@@ -39,6 +39,7 @@ sources = [
     'nanosleep.c',
     'null.c',
     'open.c',
+    'ppapi_syscalls.c',
     'read.c',
     'sbrk.c',
     'sched_yield.c',

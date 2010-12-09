@@ -87,7 +87,7 @@ typedef int (*TYPE_nacl_imc_mem_obj_create) (size_t nbytes);
 /* ppapi */
 /* ============================================================ */
 
-typedef int (*TYPE_nacl_ppapi_wait_next_event) (void *method_struct);
+typedef int (*TYPE_nacl_ppapi_waitnextevent) (void *method_struct);
 
 typedef int (*TYPE_nacl_ppapi_call) (void *method_struct);
 

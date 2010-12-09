@@ -2,6 +2,8 @@
 
 OBJECTS = hello_ppapi.o \
           ppapi_runtime.o \
+		  ppapi_call_from_browser.o \
+		  ppapi_call_to_browser.o \
 
 LDFLAGS = -lgoogle_nacl_imc \
           -lgoogle_nacl_npruntime \

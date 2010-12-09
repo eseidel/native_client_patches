@@ -138,7 +138,7 @@ else:  # mac
   ppapi_env.Bundle(bundle_name,
                    BUNDLE_EXE = ppapi_plugin,
                    BUNDLE_PKGINFO_FILENAME = 0,
-                   BUNDLE_RESOURCES = 'ppNaClPlugin2.rsrc',
+                   BUNDLE_RESOURCES = '',
                    BUNDLE_INFO_PLIST = 'osx_ppapi/Info.plist')
   # we need this to build the plugin, so register it here
   ppapi_env.AddPluginPrerequisite([bundle_name])
