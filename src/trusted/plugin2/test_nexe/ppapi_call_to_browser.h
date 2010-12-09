@@ -3,6 +3,7 @@
  */
 
 typedef enum {
+    // 0 is invalid.
     PPAPICallGetBrowserInterface = 1, // Not a part of PPAPI, rather a function pointer ppapi normaly passes.
 } CallToBrowserId;
 

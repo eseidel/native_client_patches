@@ -1,9 +1,10 @@
 #include "ppapi/c/ppp.h"
 
 typedef enum {
-    PPAPICallInitializeModule = 0,
-    PPAPICallShutdownModule = 1,
-    PPAPICallGetInterface = 2,
+    // 0 is invalid.
+    PPAPICallInitializeModule = 1,
+    PPAPICallShutdownModule = 2,
+    PPAPICallGetInterface = 3,
 } CallFromBrowserId;
 
 typedef struct {
@@ -21,4 +22,4 @@ typedef struct {
     char* interface_name;
 } GetInterfaceArgs;
 
-void HandleCallFromBrowser(CallFromBrowser*);
+int HandleCallFromBrowser(CallFromBrowser*);

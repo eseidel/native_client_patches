@@ -20,10 +20,14 @@ int main(int argc, char** argv) {
         // Ask the browser what we should do next.
         // This also passes the return value from the previous browser->NaCl call.
         // If waitnextevent returns non-zero, we should exit.
-        if (ppapi_waitnextevent((void*)&call))
-            break;
-        HandleCallFromBrowser(&call);
+        if (ppapi_waitnextevent((void*)&call)) {
+            printf("ppapi_waitnextevent returned non-zero, exiting.\n");
+            return 0;
+        }
+        // If we failed to handle the call from the browser, exit.
+        if (HandleCallFromBrowser(&call)) {
+            printf("HandleCallFromBrowser returned non-zero, exiting.\n");
+            return 0;
+        }
     }
-    printf("ppapi_waitnextevent returned non-zero, exiting.\n");
-    return 0;
 }

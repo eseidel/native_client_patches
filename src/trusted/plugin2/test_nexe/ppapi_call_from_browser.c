@@ -5,22 +5,27 @@
 #include "ppapi_call_from_browser.h"
 #include "ppapi_call_to_browser.h"
 
-void HandleCallFromBrowser(CallFromBrowser* call)
+int HandleCallFromBrowser(CallFromBrowser* call)
 {
-    printf("Called\n");
+    printf("HandleCallFromBrowser\n");
     switch(call->call_id) {
     case PPAPICallInitializeModule: {
+        printf("PPAPICallInitializeModule\n");
         InitializeModuleArgs* args = call->args;
         args->return_value = PPP_InitializeModule(args->module, GetBrowserInterface);
-        break;
+        return 0;
     }
     case PPAPICallShutdownModule:
+        printf("PPAPICallShutdownModule\n");
         PPP_ShutdownModule();
-        break;
+        return 0;
     case PPAPICallGetInterface: {
+        printf("PPAPICallGetInterface\n");
         GetInterfaceArgs* args = call->args;
         args->return_value = PPP_GetInterface(args->interface_name);
-        break;
+        return 0;
     }
     }
+    printf("Invalid call_id: %i\n", call->call_id);
+    return 1;
 }
