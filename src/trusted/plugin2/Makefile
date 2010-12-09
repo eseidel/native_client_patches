@@ -17,7 +17,6 @@ all: run
 
 patch:
 	patch -d $(CHROME_CHECKOUT) -p0 -i $(PLUGIN2_DIR)/chrome.patch
-	patch -d $(NACL_CHECKOUT) -p0 -i $(PLUGIN2_DIR)/nacl.patch
 
 chrome:
 	(cd $(CHROME_CHECKOUT)/src/chrome; xcodebuild)
