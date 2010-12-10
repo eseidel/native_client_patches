@@ -39,7 +39,7 @@ int NaClMainForChromium(int handle_count, const NaClHandle *handles,
   const char **envp;
   struct NaClApp state;
   int main_thread_only = 1;
-  char                          *nacl_file = "/Projects/native_client/native_client/src/trusted/plugin2/test_nexe/hello_ppapi.nexe";
+  char                          *nacl_file = "test_nexe/hello_ppapi.nexe";
   struct NaClApp *nap;
   enum NaClAbiCheckOption       check_abi = NACL_ABI_CHECK_OPTION_CHECK;
   struct GioFile                gout;

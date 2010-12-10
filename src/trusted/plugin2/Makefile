@@ -1,4 +1,4 @@
-CHROME_CHECKOUT=/Projects/chrome
+CHROME_CHECKOUT=~/svn/kr
 NACL_CHECKOUT=../../..
 
 BUILT_CHROME=$(CHROME_CHECKOUT)/src/xcodebuild/Debug/Chromium.app/Contents/MacOS/Chromium
